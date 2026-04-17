@@ -30,7 +30,7 @@ def add_patient(patient: Patient):
 def get_patients():
     cursor = db.cursor(dictionary=True)
 
-    query = "SELECT * FROM patients ORDER BY created_at DESC"
+    query = "SELECT * FROM patients ORDER BY created_at ASC"
     cursor.execute(query)
 
     patients = cursor.fetchall()
