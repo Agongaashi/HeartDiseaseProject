@@ -1,9 +1,12 @@
-import { useState } from "react";
-import { predictPatient } from "../api/api";
+import { useEffect, useState } from "react";
+import { getPatientUsers, predictPatient } from "../api/api";
 
 function Form() {
+  const [patients, setPatients] = useState([]);
+  const [loadingPatients, setLoadingPatients] = useState(true);
 
   const [formData, setFormData] = useState({
+    user_id: "",
     age: "",
     sex: "",
     blood_pressure: "",
@@ -11,25 +14,48 @@ function Form() {
     heart_rate: ""
   });
 
-  const [result, setResult] = useState(null);  // Ruan gjithë përgjigjen
-  const [loading, setLoading] = useState(false);  // Për loading
-  const [error, setError] = useState(null);  // Për gabime
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    const loadPatients = async () => {
+      try {
+        const data = await getPatientUsers();
+        setPatients(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingPatients(false);
+      }
+    };
+
+    loadPatients();
+  }, []);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value
-    });
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setResult(null);
+
+    if (
+      !formData.user_id ||
+      formData.age === "" ||
+      formData.sex === "" ||
+      formData.blood_pressure === "" ||
+      formData.cholesterol === "" ||
+      formData.heart_rate === ""
+    ) {
+      alert("Please fill all fields");
+      return;
+    }
 
     try {
-      const response = await predictPatient({
+      const res = await predictPatient({
+        user_id: Number(formData.user_id),
         age: Number(formData.age),
         sex: Number(formData.sex),
         blood_pressure: Number(formData.blood_pressure),
@@ -37,140 +63,120 @@ function Form() {
         heart_rate: Number(formData.heart_rate)
       });
 
-      setResult(response);  // ← Ruan gjithë përgjigjen, jo vetëm prediction
-      
-      // Pastro formularin (opsionale)
-      setFormData({
-        age: "",
-        sex: "",
-        blood_pressure: "",
-        cholesterol: "",
-        heart_rate: ""
-      });
-      
+      setResult(res);
     } catch (err) {
-      setError("Gabim gjatë predikimit. Kontrollo serverin.");
       console.error(err);
-    } finally {
-      setLoading(false);
+      alert(err.detail || "Prediction failed");
     }
   };
 
   return (
-    <div style={{ maxWidth: "500px", margin: "0 auto", padding: "20px" }}>
-      <h2 style={{ textAlign: "center" }}>Heart Disease Prediction</h2>
+    <section className="panel form-panel">
+      <form className="form-stack" onSubmit={handleSubmit}>
+        <div>
+          <h2 className="panel-title">New prediction</h2>
+          <p className="panel-copy">Complete the form and submit a prediction for the selected patient.</p>
+        </div>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        
-        <input
-          type="number"
-          name="age"
-          placeholder="Age"
-          value={formData.age}
-          onChange={handleChange}
-          required
-          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
-        />
+        <div className="field">
+          <label htmlFor="user_id">Patient email</label>
+          <select
+            id="user_id"
+            name="user_id"
+            className="select"
+            onChange={handleChange}
+            value={formData.user_id}
+          >
+            <option value="">
+              {loadingPatients ? "Loading patients..." : "Select patient"}
+            </option>
 
-        <select
-          name="sex"
-          value={formData.sex}
-          onChange={handleChange}
-          required
-          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
-        >
-          <option value="">Select Gender</option>
-          <option value="1">Male</option>
-          <option value="0">Female</option>
-        </select>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.email}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <input
-          type="number"
-          name="blood_pressure"
-          placeholder="Blood Pressure"
-          value={formData.blood_pressure}
-          onChange={handleChange}
-          required
-          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
-        />
+        <div className="form-row">
+          <div className="field">
+            <label htmlFor="age">Age</label>
+            <input
+              id="age"
+              className="input"
+              name="age"
+              placeholder="Age"
+              value={formData.age}
+              onChange={handleChange}
+            />
+          </div>
 
-        <input
-          type="number"
-          name="cholesterol"
-          placeholder="Cholesterol"
-          value={formData.cholesterol}
-          onChange={handleChange}
-          required
-          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
-        />
+          <div className="field">
+            <label htmlFor="sex">Sex</label>
+            <select
+              id="sex"
+              className="select"
+              name="sex"
+              value={formData.sex}
+              onChange={handleChange}
+            >
+              <option value="">Select sex</option>
+              <option value="0">Male</option>
+              <option value="1">Female</option>
+            </select>
+          </div>
+        </div>
 
-        <input
-          type="number"
-          name="heart_rate"
-          placeholder="Heart Rate"
-          value={formData.heart_rate}
-          onChange={handleChange}
-          required
-          style={{ padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }}
-        />
+        <div className="field">
+          <label htmlFor="blood_pressure">Blood pressure</label>
+          <input
+            id="blood_pressure"
+            className="input"
+            name="blood_pressure"
+            placeholder="BP"
+            value={formData.blood_pressure}
+            onChange={handleChange}
+          />
+        </div>
 
-        <button 
-          type="submit" 
-          disabled={loading}
-          style={{ 
-            padding: "10px", 
-            backgroundColor: "#007bff", 
-            color: "white", 
-            border: "none", 
-            borderRadius: "5px",
-            cursor: "pointer"
-          }}
-        >
-          {loading ? "Processing..." : "Predict"}
+        <div className="field">
+          <label htmlFor="cholesterol">Cholesterol</label>
+          <input
+            id="cholesterol"
+            className="input"
+            name="cholesterol"
+            placeholder="Cholesterol"
+            value={formData.cholesterol}
+            onChange={handleChange}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="heart_rate">Heart rate</label>
+          <input
+            id="heart_rate"
+            className="input"
+            name="heart_rate"
+            placeholder="Heart rate"
+            value={formData.heart_rate}
+            onChange={handleChange}
+          />
+        </div>
+
+        <button type="submit" className="button button-primary">
+          Predict
         </button>
       </form>
 
-      {/* Loading */}
-      {loading && (
-        <p style={{ textAlign: "center", marginTop: "20px" }}>Duke analizuar...</p>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div style={{ 
-          marginTop: "20px", 
-          padding: "15px", 
-          backgroundColor: "#f8d7da", 
-          color: "#721c24", 
-          borderRadius: "5px",
-          textAlign: "center"
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Rezultati i plotë */}
       {result && (
-        <div style={{ 
-          marginTop: "20px", 
-          padding: "20px", 
-          backgroundColor: result.prediction === 1 ? "#f8d7da" : "#d4edda",
-          color: result.prediction === 1 ? "#721c24" : "#155724",
-          borderRadius: "10px",
-          textAlign: "center",
-          border: `2px solid ${result.prediction === 1 ? "#dc3545" : "#28a745"}`
-        }}>
-          <h3>Prediction Result:</h3>
-          <p style={{ fontSize: "24px", fontWeight: "bold" }}>
-            {result.prediction === 1 ? "⚠️ Heart Disease Risk" : "✅ No Heart Disease"}
-          </p>
-          <p><strong>Risk Level:</strong> {result.risk_level}</p>
-          <p><strong>Probability:</strong> {(result.probability * 100).toFixed(1)}%</p>
-          <p><strong>Patient ID:</strong> {result.patient_id}</p>
-          <p><strong>Message:</strong> {result.message}</p>
+        <div className="result-box">
+          <p className="eyebrow">Prediction result</p>
+          <h3 className="result-value">{result.risk_level}</h3>
+          <p className="panel-copy">{(result.probability * 100).toFixed(1)}% probability</p>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

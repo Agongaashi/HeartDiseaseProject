@@ -1,29 +1,29 @@
 from fastapi import FastAPI
-from database import db
-
 from fastapi.middleware.cors import CORSMiddleware
-from routes import patients
-from routes import predict
+
+from routes import patients, predict, auth, refresh
 
 app = FastAPI()
 
-app.include_router(patients.router)
-app.include_router(predict.router)
-
+# 🔥 CORS (FINAL FIX)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ROUTES
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(refresh.router, tags=["Auth"])
+app.include_router(patients.router, tags=["Patients"])
+app.include_router(predict.router, tags=["Predict"])
+
+
 @app.get("/")
 def home():
-    return {"message": "API po punon!"}
-
-@app.get("/test-db")
-def test_db():
-    if db.is_connected():
-        return {"message": "Database connected!"}
-    return {"message": "Database not connected"}
+    return {"message": "API running"}

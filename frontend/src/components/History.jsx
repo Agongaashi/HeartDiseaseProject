@@ -1,145 +1,178 @@
 import { useEffect, useState } from "react";
-import { getPatients } from "../api/api";
+import {
+  deletePatientRecord,
+  getMyResults,
+  getPatientHistory,
+  getPatientUsers
+} from "../api/api";
+import { useAuth } from "../auth/authStore";
+import Sidebar from "../components/Sidebar";
 
-function History() {
+export default function History() {
+  const { user } = useAuth();
   const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadPatients();
-  }, []);
+    const load = async () => {
+      try {
+        if (!user?.role) return;
 
-  const loadPatients = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+        if (user.role === "doctor") {
+          const patientUsers = await getPatientUsers();
+          setPatients(Array.isArray(patientUsers) ? patientUsers : []);
+          setData([]);
+          return;
+        }
 
-      const data = await getPatients();
+        setLoading(true);
+        const res = await getMyResults();
+        setData(Array.isArray(res) ? res : []);
+      } catch (err) {
+        console.log(err);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      console.log("API response:", data);
+    load();
+  }, [user]);
 
-      if (Array.isArray(data)) {
-        setPatients(data);
-      } else {
-        setPatients([]);
+  useEffect(() => {
+    if (user?.role !== "doctor") return;
+
+    const loadPatientHistory = async () => {
+      if (!selectedPatientId) {
+        setData([]);
+        return;
       }
 
-    } catch (error) {
-      console.error("Error loading patients:", error);
-      setError("Nuk mund të ngarkohen të dhënat");
-      setPatients([]);
-    } finally {
-      setLoading(false);
+      try {
+        setLoading(true);
+        const res = await getPatientHistory(selectedPatientId);
+        setData(Array.isArray(res) ? res : []);
+      } catch (err) {
+        console.log(err);
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPatientHistory();
+  }, [selectedPatientId, user]);
+
+  const handleDelete = async (recordId) => {
+    const confirmed = window.confirm("Delete this history record?");
+
+    if (!confirmed) return;
+
+    try {
+      await deletePatientRecord(recordId);
+      setData((prev) => prev.filter((p) => p.id !== recordId));
+    } catch (err) {
+      console.log(err);
+      alert(err.detail || "Delete failed");
     }
   };
 
-  const getGender = (sex) => {
-    return sex === 1 ? "Male" : "Female";
-  };
-
-  const getPredictionStyle = (prediction) => {
-    return {
-      color: prediction === 1 ? "#dc3545" : "#28a745",
-      fontWeight: "bold"
-    };
-  };
-
   return (
-    <div style={{ 
-      maxWidth: "1200px", 
-      margin: "20px auto", 
-      padding: "20px",
-      border: "1px solid #ddd",
-      borderRadius: "10px",
-      backgroundColor: "#f9f9f9"
-    }}>
-      <h2 style={{ textAlign: "center", color: "#333" }}>📋 Patients History</h2>
+    <div className="app-shell">
+      <Sidebar />
 
-      {loading ? (
-        <p style={{ textAlign: "center" }}>Loading...</p>
-      ) : error ? (
-        <p style={{ textAlign: "center", color: "red" }}>{error}</p>
-      ) : patients.length === 0 ? (
-        <p style={{ textAlign: "center" }}>No patients found</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ 
-            width: "100%", 
-            borderCollapse: "collapse",
-            backgroundColor: "white"
-          }}>
-            <thead>
-              <tr style={{ 
-                backgroundColor: "#007bff", 
-                color: "white",
-                textAlign: "left"
-              }}>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>ID</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Age</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Sex</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>BP</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Cholesterol</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Heart Rate</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Prediction</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Probability</th>
-                <th style={{ padding: "12px", border: "1px solid #ddd" }}>Date</th>
-              </tr>
-            </thead>
+      <main className="page">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">History</p>
+            <h1 className="page-title">Prediction records</h1>
+            <p className="page-subtitle">
+              Review saved evaluations, patient details, and prediction probabilities.
+            </p>
+          </div>
+        </header>
 
-            <tbody>
-              {patients.map((p, index) => (
-                <tr key={p.id || index} style={{ 
-                  backgroundColor: index % 2 === 0 ? "#f8f9fa" : "white"
-                }}>
-                  <td style={{ padding: "10px", border: "1px solid #ddd" }}>{p.id}</td>
-                  <td style={{ padding: "10px", border: "1px solid #ddd" }}>{p.age}</td>
-                  <td style={{ padding: "10px", border: "1px solid #ddd" }}>{getGender(p.sex)}</td>
-                  <td style={{ padding: "10px", border: "1px solid #ddd" }}>{p.blood_pressure}</td>
-                  <td style={{ padding: "10px", border: "1px solid #ddd" }}>{p.cholesterol}</td>
-                  <td style={{ padding: "10px", border: "1px solid #ddd" }}>{p.heart_rate}</td>
-                  <td style={{ 
-                    padding: "10px", 
-                    border: "1px solid #ddd",
-                    ...getPredictionStyle(p.prediction)
-                  }}>
-                    {p.prediction === 1 ? "⚠️ Risk" : "✅ No Risk"}
-                  </td>
-                  {/* 🔴 KOLONA E RE - PROBABILITY */}
-                  <td style={{ 
-                    padding: "10px", 
-                    border: "1px solid #ddd",
-                    fontWeight: "bold"
-                  }}>
-                    {p.prediction_probability 
-                      ? `${(p.prediction_probability * 100).toFixed(1)}%` 
-                      : "-"}
-                  </td>
-                  <td style={{ padding: "10px", border: "1px solid #ddd", fontSize: "12px" }}>
-                    {p.created_at ? new Date(p.created_at).toLocaleDateString() : "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      
-      {!loading && patients.length > 0 && (
-        <div style={{ 
-          marginTop: "20px", 
-          padding: "10px", 
-          backgroundColor: "#e9ecef", 
-          borderRadius: "5px",
-          textAlign: "center"
-        }}>
-          <strong>Total patients:</strong> {patients.length} | 
-          <strong style={{ color: "#dc3545" }}> With risk:</strong> {patients.filter(p => p.prediction === 1).length} | 
-          <strong style={{ color: "#28a745" }}> Without risk:</strong> {patients.filter(p => p.prediction !== 1).length}
-        </div>
-      )}
+        <section className="panel form-panel">
+          {user?.role === "doctor" && (
+            <div className="history-toolbar">
+              <div className="field history-select">
+                <label htmlFor="patient-history">Patient email</label>
+                <select
+                  id="patient-history"
+                  className="select"
+                  value={selectedPatientId}
+                  onChange={(e) => setSelectedPatientId(e.target.value)}
+                >
+                  <option value="">Select patient</option>
+
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {!user ? (
+            <div className="empty-state">Loading...</div>
+          ) : loading ? (
+            <div className="empty-state">Loading...</div>
+          ) : user.role === "doctor" && !selectedPatientId ? (
+            <div className="empty-state">Select a patient to view history.</div>
+          ) : data.length === 0 ? (
+            <div className="empty-state">No data found.</div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Patient Name</th>
+                    <th>Age</th>
+                    <th>Sex</th>
+                    <th>BP</th>
+                    <th>Cholesterol</th>
+                    <th>Heart Rate</th>
+                    <th>Prediction</th>
+                    <th>Probability</th>
+                    {user.role === "doctor" && <th>Action</th>}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {data.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.id}</td>
+                      <td>{p.patient_name || "-"}</td>
+                      <td>{p.age}</td>
+                      <td>{p.sex}</td>
+                      <td>{p.blood_pressure}</td>
+                      <td>{p.cholesterol}</td>
+                      <td>{p.heart_rate}</td>
+                      <td>{p.prediction}</td>
+                      <td>{p.prediction_probability}</td>
+                      {user.role === "doctor" && (
+                        <td>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="button button-danger"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }
-
-export default History;
